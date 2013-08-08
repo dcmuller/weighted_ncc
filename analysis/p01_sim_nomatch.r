@@ -139,7 +139,7 @@ sim_no_match <- function(params) {
 }
 
 # set up parameters that are constant accross scenarios
-cohort_size <- 1000
+cohort_size <- 10000
 cens <- 80
 baseline_rate_event <- 10e-10
 baseline_rate_compet <- 10e-9
@@ -162,12 +162,12 @@ sim_settings <- list(
 ##############################
 # Run simulation
 ##############################
-nsims <- 200
+nsims <- 1000
 # seed chosen by sampling a random integer between 1 and 9999
 # at <www.random.org> 
 set.seed(3211)
 output <- vector(mode = "list", length(sim_settings))
-for(i in 1:length(sim_settings)) {
+for (i in 1:length(sim_settings)) {
   cat(paste0("Simulating for parameter set ", i, ":\n"))
   simres <- vector(mode = "list", nsims)
   for (j in 1:nsims) {
@@ -185,15 +185,7 @@ for(i in 1:length(sim_settings)) {
   output[[i]] <- rbindlist(simres) 
 }
 out <- rbindlist(output)
-write.csv(out, file="./analysis/output/o01_sim_nomatch.csv")
-
-cox <- out[(model=="coxfull" | model=="coxweighted") & param=="coef",]
-h <- ggplot(data=cox, aes(x=exposure))
-h + geom_histogram() + facet_grid(model ~ .)
-est_cox <- cox[, 
-               list(mean_sims=mean(exposure), 
-                    sd_sims=sqrt(var(exposure))), 
-               by=c("model")]
+write.csv(out, file="./analysis/output/o01_all_samples.csv")
 
 # there are some very odd results from the weibull models... converging well
 # away from the solution. Drop them.
@@ -201,7 +193,16 @@ out_restricted <- out[(log_scale > -100) |
                       (param != "coef") | 
                       (model == "coxfull") | 
                       (model=="coxweighted")]
+write.csv(out_restricted, file="analysis/output/o01_converged_samples.csv")
 weibull <- out_restricted[(model=="full" | model=="weighted"),] 
+cox <- out[(model=="coxfull" | model=="coxweighted")] 
+h <- ggplot(data=cox, aes(x=exposure))
+h + geom_histogram() + facet_grid(model ~ .)
+est_cox <- cox[, 
+               list(mean_sims=mean(exposure), 
+                    sd_sims=sqrt(var(exposure))), 
+               by=c("model")]
+
 h_weib <- ggplot(data=weibull[param=="coef"], aes(x=exposure))
 h_weib <- h_weib + geom_histogram() + facet_grid(model ~ .)
 est_weibull <- weibull[param=="coef",  
