@@ -196,15 +196,27 @@ out_restricted <- out[(log_scale > -100) |
 write.csv(out_restricted, file="analysis/output/o01_converged_samples.csv")
 weibull <- out_restricted[(model=="full" | model=="weighted"),] 
 cox <- out[(model=="coxfull" | model=="coxweighted")] 
-h <- ggplot(data=cox, aes(x=exposure))
-h + geom_histogram() + facet_grid(model ~ .)
-est_cox <- cox[, 
+h_cox <- ggplot(data=cox[param=="coef"], aes(x=exposure))
+h_cox <- h_cox + geom_histogram() + facet_grid(model ~ .)
+h_cox
+est_cox <- cox[param=="coef", 
                list(mean_sims=mean(exposure), 
                     sd_sims=sqrt(var(exposure))), 
                by=c("model")]
+se_cox <- cox[param=="se", 
+              list(mean_sims=mean(exposure), 
+                   sd_sims=sqrt(var(exposure))), 
+              by=c("model")]
+
 
 h_weib <- ggplot(data=weibull[param=="coef"], aes(x=exposure))
 h_weib <- h_weib + geom_histogram() + facet_grid(model ~ .)
+h_weib
 est_weibull <- weibull[param=="coef",  
-                       list(mean=mean(exposure), sd=sqrt(var(exposure))),
+                       list(mean_simes=mean(exposure), 
+                            sd_sims=sqrt(var(exposure))),
                        by=c("model")]
+se_weibull <- weibull[param=="se",  
+                      list(mean_simes=mean(exposure), 
+                           sd_sims=sqrt(var(exposure))),
+                      by=c("model")]
