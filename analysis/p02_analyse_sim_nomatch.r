@@ -62,36 +62,57 @@ summary_samples
 samples_weighted <- samples[model == "weighted" & param_type == "coef", ]
 samples_weighted$sim <- c(1:nrow(samples_weighted))
 
+## linear predictor
+##  (use matrix "x" to specify exposure values for the exposure variable)
+x <- matrix(c(1,-1, 1, 0, 1, 1), nrow=2)
+xb <- as.matrix(samples_weighted[, list(intercept, exposure)]) %*% x
+samples_weighted <- data.frame(samples_weighted, xb)
+samples_weighted <- melt(samples_weighted, 
+                         id.vars = c("model", "param_type", "sim_id", 
+                                     "sim", "intercept", "exposure",
+                                     "log_scale"),
+                         value.name = "xb",
+                         variable.name = "x")
+
+
 ## times at which to evaluate the survivor function
 t <- seq(30, 80, by = 0.5)
 time_mat <- matrix(rep(t, each=nrow(samples_weighted)), nrow=nrow(samples_weighted))
 pred <- cbind(samples_weighted, time_mat)
 pred_long <- melt(pred, 
                   id.vars    = c("model", "param_type", "sim_id", "sim", 
-                                 "intercept", "exposure", "log_scale"), 
+                                 "intercept", "exposure", "log_scale",
+                                 "x", "xb"), 
                   value.name = "time")
 pred_long <- data.table(pred_long)
 
 ## S(t) = exp(-lambda * t^p)
 pred_long$p <- 1/exp(pred_long$log_scale)
-pred_long$lambda <- exp(-pred_long$p * pred_long$intercept)
+pred_long$lambda <- exp(-pred_long$p * pred_long$xb)
 pred_long$surv <- exp(-pred_long$lambda * (pred_long$time-30)^pred_long$p)
 pred_long$pr <- 1 - pred_long$surv
 
 ## plot survival function from each simulation
-surv_plot <- ggplot(data=pred_long, aes(x=time, y=pr, group=sim))
+pred_long$plotgroup <- paste0(pred_long$x, pred_long$sim)
+surv_plot <- ggplot(data=pred_long, aes(x=time, y=pr, group=plotgroup, colour=x))
 surv_plot <- surv_plot +  theme_bw()
 surv_plot <- surv_plot + geom_line(alpha = I(1/sqrt(max(pred_long$sim)*4)))
 surv_plot
 
 ## "True" survival function
-baseline_rate <- 10e-5
+baseline_rate <- c(0.5*10e-5, 10e-5, 2*10e-5)
+baseline_rate <- rep(baseline_rate, each = length(t))
 weib_param <- 1.8
 surv_true <- exp(-baseline_rate*(t-30)^weib_param)
 true <- data.frame(time = t, 
                    surv = surv_true, 
+                   lambda = baseline_rate,
                    pr   = 1-surv_true,
-                   sim  = rep(0, length(t)))
+                   plotgroup = rep(0, length(surv_true)),
+                   x = rep(c("X1", "X2", "X3"), each=length(t)))
+                   
 surv_plot <- surv_plot + geom_line(data = true, 
-                                   aes(x = time, y = pr))
+                                   aes(x = time, 
+                                       y = pr, 
+                                       group = x))
 surv_plot
