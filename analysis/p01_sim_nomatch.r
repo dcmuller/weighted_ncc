@@ -68,9 +68,7 @@ coef_se <- function(mod) {
 dots <- function(iter) {
   di_str <- ifelse(((iter %% 10) == 0) & !(iter %% 50 == 0),
                    paste0(iter),
-                   ifelse((iter %% 50) == 0,
-                          paste(iter, "\n"),
-                          "."))
+                   ifelse((iter %% 50) == 0, paste(iter, "\n"), "."))
   return(di_str)
 }
 ##############################
@@ -84,18 +82,23 @@ sim_no_match <- function(params) {
   compet_exposure <- as.matrix(rnorm(params$n))
   cohort <- weibull_compet2(lambda0 = params$baseline_rate,
                             p = params$weib_param,
-                            cens_time = params$cens,
+                            ## time is relative to the origin
+                            cens_time = params$cens - params$origin,
                             X_1 = exposure,
                             beta_1 = params$lhr,
                             X_2 = compet_exposure,
                             beta_2 = params$compet_lhr)
+  ## time is relative to the origin:
+  cohort$obs_time <- cohort$obs_time + params$origin
   cohort$failed <- as.numeric(cohort$status==1)
   cohort$exposure <- exposure
   # full cohort analysis
-  full <- survreg(Surv(time = cohort$obs_time, event = cohort$failed) ~ cohort$exposure, 
-                  dist = "weibull")
+  st_full <- Surv(time    = cohort$obs_time, 
+                  event   = cohort$failed, 
+                  origin  = params$origin)
+  full <- survreg(st_full ~ cohort$exposure, dist = "weibull")
   full <- coef_se(full)
-  coxfull <- coxph(Surv(time = cohort$obs_time, event = cohort$failed) ~ cohort$exposure)
+  coxfull <- coxph(st_full ~ cohort$exposure)
   coxfull <- data.frame(intercept = rep(NA ,2), 
                         exposure = c(coef(coxfull), sqrt(diag(vcov(coxfull)))),
                         log_scale = rep(NA, 2),
@@ -116,13 +119,17 @@ sim_no_match <- function(params) {
   ncc <- as.data.frame(ncc[, tail(.SD, 1), by = c("ncc_id")])
     
   # generate survival object
-  st <- Surv(time = ncc$obs_time, event = ncc$ncc_fail)
-  weighted <- survreg(st ~ exposure,  
+  st <- Surv(time   = ncc$obs_time, 
+             event  = ncc$ncc_fail,
+             origin = params$origin)
+  weighted <- survreg(st ~ exposure + cluster(ncc_id),  
                       weights = 1/ncc_pr,
+                      robust = TRUE,
                       data = ncc) 
   weighted <- coef_se(weighted)
-  coxweighted <- coxph(st ~ exposure,  
-                      weights = 1/ncc_pr,
+  coxweighted <- coxph(st ~ exposure + cluster(ncc_id),  
+                       weights = 1/ncc_pr,
+                       robust = TRUE,
                       data = ncc) 
   coxweighted <- data.frame(intercept = rep(NA, 2),
                             exposure = c(coef(coxweighted), sqrt(diag(vcov(coxweighted)))),
@@ -139,12 +146,13 @@ sim_no_match <- function(params) {
 }
 
 # set up parameters that are constant accross scenarios
-cohort_size <- 10000
+cohort_size <- 5000
 cens <- 80
-baseline_rate_event <- 10e-10
-baseline_rate_compet <- 10e-9
-weib_param_event <- 4.3
-weib_param_compet <- 4.2
+origin <- 30 # time at which people become at risk
+baseline_rate_event <- 10e-5
+baseline_rate_compet <- 10e-7
+weib_param_event <- 1.8
+weib_param_compet <- 3.4
 ncc_controls <- 2
 
 # place sets of parameters in a list so we can use lapply
@@ -154,6 +162,7 @@ sim_settings <- list(
        cens = cens,
        baseline_rate = c(baseline_rate_event, baseline_rate_compet),
        weib_param = c(weib_param_event, weib_param_compet),
+       origin = origin, 
        ncc_controls = ncc_controls,
        compet_lhr = log(1),
        lhr = c(log(2)))
@@ -162,7 +171,7 @@ sim_settings <- list(
 ##############################
 # Run simulation
 ##############################
-nsims <- 1000
+nsims <- 100
 # seed chosen by sampling a random integer between 1 and 9999
 # at <www.random.org> 
 set.seed(3211)
