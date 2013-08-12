@@ -146,22 +146,31 @@ sim_no_match <- function(params) {
 }
 
 # set up parameters that are constant accross scenarios
-cohort_size <- 5000
+cohort_size <- 10000
 cens <- 80
 origin <- 30 # time at which people become at risk
-baseline_rate_event <- 10e-5
+baseline_rate_event <- 5e-6
 baseline_rate_compet <- 10e-7
-weib_param_event <- 1.8
+weib_param_event <- 2.5
 weib_param_compet <- 3.4
 ncc_controls <- 2
 
 # place sets of parameters in a list so we can use lapply
 sim_settings <- list(
-  # hr of 2
+  # hr of 2; baseline rate 5-e6; weibull param 2.5 (rare disease)
   list(n = cohort_size, 
        cens = cens,
-       baseline_rate = c(baseline_rate_event, baseline_rate_compet),
-       weib_param = c(weib_param_event, weib_param_compet),
+       baseline_rate = c(5e-6, baseline_rate_compet),
+       weib_param = c(2.5, weib_param_compet),
+       origin = origin, 
+       ncc_controls = ncc_controls,
+       compet_lhr = log(1),
+       lhr = c(log(2))),
+  # hr of 2; baseline rate 10-e5; weibull param 1.8 (common disease, e.g. PCa)
+  list(n = cohort_size, 
+       cens = cens,
+       baseline_rate = c(10e-5, baseline_rate_compet),
+       weib_param = c(1.8, weib_param_compet),
        origin = origin, 
        ncc_controls = ncc_controls,
        compet_lhr = log(1),
@@ -171,11 +180,12 @@ sim_settings <- list(
 ##############################
 # Run simulation
 ##############################
-nsims <- 100
+nsims <- 200
 # seed chosen by sampling a random integer between 1 and 9999
 # at <www.random.org> 
 set.seed(3211)
 output <- vector(mode = "list", length(sim_settings))
+params <- vector(mode = "list", length(sim_settings))
 for (i in 1:length(sim_settings)) {
   cat(paste0("Simulating for parameter set ", i, ":\n"))
   simres <- vector(mode = "list", nsims)
@@ -192,40 +202,12 @@ for (i in 1:length(sim_settings)) {
     cat(dots(j))
   }
   output[[i]] <- rbindlist(simres) 
+  output[[i]]$settings <- i
+  ## add simulation parameters
+  params[[i]] <- as.data.frame(t(unlist(sim_settings[[1]])))
+  params[[i]]$settings <- i
 }
 out <- rbindlist(output)
-write.csv(out, file="./analysis/output/o01_all_samples.csv")
-
-# there are some very odd results from the weibull models... converging well
-# away from the solution. Drop them.
-out_restricted <- out[(log_scale > -100) |
-                      (param != "coef") | 
-                      (model == "coxfull") | 
-                      (model=="coxweighted")]
-write.csv(out_restricted, file="analysis/output/o01_converged_samples.csv")
-weibull <- out_restricted[(model=="full" | model=="weighted"),] 
-cox <- out[(model=="coxfull" | model=="coxweighted")] 
-h_cox <- ggplot(data=cox[param=="coef"], aes(x=exposure))
-h_cox <- h_cox + geom_histogram() + facet_grid(model ~ .)
-h_cox
-est_cox <- cox[param=="coef", 
-               list(mean_sims=mean(exposure), 
-                    sd_sims=sqrt(var(exposure))), 
-               by=c("model")]
-se_cox <- cox[param=="se", 
-              list(mean_sims=mean(exposure), 
-                   sd_sims=sqrt(var(exposure))), 
-              by=c("model")]
-
-
-h_weib <- ggplot(data=weibull[param=="coef"], aes(x=exposure))
-h_weib <- h_weib + geom_histogram() + facet_grid(model ~ .)
-h_weib
-est_weibull <- weibull[param=="coef",  
-                       list(mean_simes=mean(exposure), 
-                            sd_sims=sqrt(var(exposure))),
-                       by=c("model")]
-se_weibull <- weibull[param=="se",  
-                      list(mean_simes=mean(exposure), 
-                           sd_sims=sqrt(var(exposure))),
-                      by=c("model")]
+par <- rbindlist(params)
+write.csv(out, file = "./analysis/output/o01_all_samples.csv")
+write.csv(par, file = "./analysis/output/o01_params.csv")
