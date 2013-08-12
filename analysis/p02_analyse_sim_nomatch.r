@@ -35,17 +35,17 @@ samples <- rename(samples,
 samples$sim_id <- floor((samples$sim_id + 1)/2)
 
 ## data.tables are faster and easier to manipulate
-samples <- data.table(samples, key = c("model", "param_type"))
+samples <- data.table(samples, key = c("settings", "model", "param_type"))
 
 ## 'melted', or long copy of the results to facilitate calculations and plotting
 samples_long <- melt(samples, 
-                     id.vars       = c("model", "param_type", "sim_id"), 
+                     id.vars       = c("settings", "model", "param_type", "sim_id"), 
                      measure.vars  = c("intercept", "exposure", "log_scale"), 
                      value.name    = "estimate",
                      variable.name = "param")
 samples_long <- data.table(samples_long)
 samples_long$param<- as.character(samples_long$param)
-setkey(samples_long, model, param_type, param)
+setkey(samples_long, settings, model, param_type, param)
 
 
 ## summary table by model
@@ -54,7 +54,10 @@ summary_samples <- samples_long[,
                                      sd    = sd(estimate),
                                      min   = min(estimate),
                                      max   = max(estimate))
-                                , by = c("model", "param", "param_type")]
+                                , by = c("settings", 
+                                         "model", 
+                                         "param", 
+                                         "param_type")]
 setkey(summary_samples, model, param, param_type)
 summary_samples
 
@@ -68,20 +71,19 @@ x <- matrix(c(1,-1, 1, 0, 1, 1), nrow=2)
 xb <- as.matrix(samples_weighted[, list(intercept, exposure)]) %*% x
 samples_weighted <- data.frame(samples_weighted, xb)
 samples_weighted <- melt(samples_weighted, 
-                         id.vars = c("model", "param_type", "sim_id", 
-                                     "sim", "intercept", "exposure",
-                                     "log_scale"),
+                         id.vars = c("settings", "model", "param_type", 
+                                     "sim_id", "sim", "intercept", 
+                                     "exposure", "log_scale"),
                          value.name = "xb",
                          variable.name = "x")
-
 
 ## times at which to evaluate the survivor function
 t <- seq(30, 80, by = 0.5)
 time_mat <- matrix(rep(t, each=nrow(samples_weighted)), nrow=nrow(samples_weighted))
 pred <- cbind(samples_weighted, time_mat)
 pred_long <- melt(pred, 
-                  id.vars    = c("model", "param_type", "sim_id", "sim", 
-                                 "intercept", "exposure", "log_scale",
+                  id.vars    = c("settings", "model", "param_type", "sim_id", 
+                                 "sim", "intercept", "exposure", "log_scale",
                                  "x", "xb"), 
                   value.name = "time")
 pred_long <- data.table(pred_long)
@@ -94,19 +96,26 @@ pred_long$pr <- 1 - pred_long$surv
 
 ## plot survival function from each simulation
 pred_long$plotgroup <- paste0(pred_long$x, pred_long$sim)
-surv_plot <- ggplot(data=pred_long, aes(x=time, y=pr, group=plotgroup, colour=x))
+surv_plot <- ggplot(data=pred_long[settings==1], 
+                    aes(x = time, 
+                        y = pr, 
+                        group = plotgroup, 
+                        colour = x))
 surv_plot <- surv_plot +  theme_bw()
 surv_plot <- surv_plot + geom_line(alpha = I(1/sqrt(max(pred_long$sim)*4)))
 surv_plot
 
 ## "True" survival function
-baseline_rate <- c(0.5*10e-5, 10e-5, 2*10e-5)
-baseline_rate <- rep(baseline_rate, each = length(t))
-weib_param <- 1.8
-surv_true <- exp(-baseline_rate*(t-30)^weib_param)
+params <- read.csv("./analysis/output/o01_params.csv")
+hr <- exp(params[1, "lhr"])
+origin <- params[1, "origin"]
+weib_param <- params[1, "weib_param1"]
+lambda0 <-c(1/hr, 1, hr) * params[1, "baseline_rate1"] 
+lambda0 <- rep(lambda0, each = length(t))
+surv_true <- exp(-lambda0*(t-origin)^weib_param)
 true <- data.frame(time = t, 
                    surv = surv_true, 
-                   lambda = baseline_rate,
+                   lambda = lambda0,
                    pr   = 1-surv_true,
                    plotgroup = rep(0, length(surv_true)),
                    x = rep(c("X1", "X2", "X3"), each=length(t)))

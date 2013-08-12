@@ -204,7 +204,7 @@ for (i in 1:length(sim_settings)) {
   output[[i]] <- rbindlist(simres) 
   output[[i]]$settings <- i
   ## add simulation parameters
-  params[[i]] <- as.data.frame(t(unlist(sim_settings[[1]])))
+  params[[i]] <- as.data.frame(t(unlist(sim_settings[[i]])))
   params[[i]]$settings <- i
 }
 out <- rbindlist(output)
