@@ -146,7 +146,7 @@ sim_no_match <- function(params) {
 }
 
 # set up parameters that are constant accross scenarios
-cohort_size <- 10000
+cohort_size <- 20000
 cens <- 80
 origin <- 30 # time at which people become at risk
 baseline_rate_event <- 5e-6
@@ -157,10 +157,10 @@ ncc_controls <- 2
 
 # place sets of parameters in a list so we can use lapply
 sim_settings <- list(
-  # hr of 2; baseline rate 5-e6; weibull param 2.5 (rare disease)
+  # hr of 2; baseline rate 5-e7; weibull param 2.5 (rare disease)
   list(n = cohort_size, 
        cens = cens,
-       baseline_rate = c(5e-6, baseline_rate_compet),
+       baseline_rate = c(5e-7, baseline_rate_compet),
        weib_param = c(2.5, weib_param_compet),
        origin = origin, 
        ncc_controls = ncc_controls,
@@ -180,14 +180,14 @@ sim_settings <- list(
 ##############################
 # Run simulation
 ##############################
-nsims <- 200
+nsims <- 500
 # seed chosen by sampling a random integer between 1 and 9999
 # at <www.random.org> 
 set.seed(3211)
 output <- vector(mode = "list", length(sim_settings))
 params <- vector(mode = "list", length(sim_settings))
 for (i in 1:length(sim_settings)) {
-  cat(paste0("Simulating for parameter set ", i, ":\n"))
+  cat(paste0("\nSimulating for parameter set ", i, ":\n"))
   simres <- vector(mode = "list", nsims)
   for (j in 1:nsims) {
     simres[[j]] <- tryCatch(sim_no_match(sim_settings[[i]]),

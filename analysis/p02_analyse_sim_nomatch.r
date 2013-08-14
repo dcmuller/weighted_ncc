@@ -96,7 +96,7 @@ pred_long$pr <- 1 - pred_long$surv
 
 ## plot survival function from each simulation
 pred_long$plotgroup <- paste0(pred_long$x, pred_long$sim)
-surv_plot <- ggplot(data=pred_long[settings==1], 
+surv_plot <- ggplot(data=pred_long[settings==2], 
                     aes(x = time, 
                         y = pr, 
                         group = plotgroup, 
@@ -107,10 +107,10 @@ surv_plot
 
 ## "True" survival function
 params <- read.csv("./analysis/output/o01_params.csv")
-hr <- exp(params[1, "lhr"])
-origin <- params[1, "origin"]
-weib_param <- params[1, "weib_param1"]
-lambda0 <-c(1/hr, 1, hr) * params[1, "baseline_rate1"] 
+hr <- exp(params[2, "lhr"])
+origin <- params[2, "origin"]
+weib_param <- params[2, "weib_param1"]
+lambda0 <-c(1/hr, 1, hr) * params[2, "baseline_rate1"] 
 lambda0 <- rep(lambda0, each = length(t))
 surv_true <- exp(-lambda0*(t-origin)^weib_param)
 true <- data.frame(time = t, 
@@ -125,3 +125,4 @@ surv_plot <- surv_plot + geom_line(data = true,
                                        y = pr, 
                                        group = x))
 surv_plot
+
