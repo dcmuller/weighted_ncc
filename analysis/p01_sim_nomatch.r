@@ -16,7 +16,7 @@ library(survival)
 library(devtools)
 library(data.table)
 library(ggplot2)
-version_randsurv <- "0.1"
+version_randsurv <- "0.2"
 version_ncctools <- "0.2"
 if ("randsurv" %in% rownames(installed.packages()) == FALSE) {
   install_github("randsurv", 
@@ -80,7 +80,7 @@ dots <- function(iter) {
 sim_no_match <- function(params) {
   exposure <- as.matrix(rnorm(params$n))
   compet_exposure <- as.matrix(rnorm(params$n))
-  cohort <- weibull_compet2(lambda0 = params$baseline_rate,
+  cohort <- weibull_compet(lambda0 = params$baseline_rate,
                             p = params$weib_param,
                             ## time is relative to the origin
                             cens_time = params$cens - params$origin,
