@@ -16,7 +16,7 @@ library(survival)
 library(devtools)
 library(data.table)
 library(ggplot2)
-version_randsurv <- "0.2"
+version_randsurv <- "0.2.1"
 version_ncctools <- "0.2"
 if ("randsurv" %in% rownames(installed.packages()) == FALSE) {
   install_github("randsurv", 
