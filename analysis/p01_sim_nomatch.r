@@ -180,7 +180,7 @@ sim_settings <- list(
 ##############################
 # Run simulation
 ##############################
-nsims <- 500
+nsims <- 100
 # seed chosen by sampling a random integer between 1 and 9999
 # at <www.random.org> 
 set.seed(3211)
