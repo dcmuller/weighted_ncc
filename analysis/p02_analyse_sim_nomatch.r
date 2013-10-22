@@ -7,6 +7,8 @@ library(devtools)
 library(data.table)
 library(reshape2)
 library(survival)
+library(Hmisc)
+library(Cairo)
 
 ## Install dcmMisc version 0.1 from github if it is not available
 version_dcmMisc <- 0.1
@@ -23,6 +25,9 @@ if (installed.packages()["dcmMisc", "Version"] != version_dcmMisc) {
 }
 library(dcmMisc)
 
+## read parameter settings for simulations
+params <- read.csv("./analysis/output/o01_params.csv", stringsAsFactors = FALSE)
+params <- data.table(params)
 
 ## read data and rename
 samples <- read.csv("./analysis/output/o01_all_samples.csv",
@@ -61,6 +66,45 @@ summary_samples <- samples_long[,
 setkey(summary_samples, model, param, param_type)
 summary_samples
 
+## table for comparison of full cox and weighted cox
+tabcox <- summary_samples[(model == "coxfull" | model == "coxweighted") 
+                            & param == "exposure",
+                          list(settings, model, param_type, mean, sd)]
+tabcox_1 <- tabcox[settings == 1]
+tabcox_1[, settings:=NULL]
+tabcox_1 <- reshape(tabcox_1, 
+                    v.names=c("mean", "sd"), 
+                    idvar="model", 
+                    direction="wide", 
+                    timevar="param_type")
+tabcox_1 <- data.frame(tabcox_1)
+tabcox_2 <- tabcox[settings == 2]
+tabcox_2[, settings:=NULL]
+tabcox_2 <- reshape(tabcox_2, 
+                    v.names=c("mean", "sd"), 
+                    idvar="model", 
+                    direction="wide", 
+                    timevar="param_type")
+tabcox_2 <- data.frame(tabcox_2)
+tabcox <- rbind.data.frame(tabcox_2, tabcox_1)
+rownames(tabcox) <- c("common disease", "", "rare disease", " ")
+for (i in 1:ncol(tabcox)) {
+  if (is.numeric(tabcox[, i])) {
+    tabcox[, i] <- round(tabcox[, i], 3)
+  }
+}
+tabcox[["model"]] <- ifelse(tabcox[["model"]] == "coxfull", 
+                            "Full cohort", 
+                            "Weighted NCC")
+colnames(tabcox) <- c("analysis",
+                      "mean(log HR)", "sd(log HR)", 
+                      "mean(se(log HR))", "sd(se(log HR))")
+textab <- latex(tabcox, 
+                file = "./analysis/output/t02_cox_full_vs_ncc.tex", 
+                booktabs = TRUE, 
+                rowlabel = "")
+
+
 ## build prediction dataset for plotting survival curves
 samples_weighted <- samples[model == "weighted" & param_type == "coef", ]
 samples_weighted$sim <- c(1:nrow(samples_weighted))
@@ -94,23 +138,25 @@ pred_long$lambda <- exp(-pred_long$p * pred_long$xb)
 pred_long$surv <- exp(-pred_long$lambda * (pred_long$time-30)^pred_long$p)
 pred_long$pr <- 1 - pred_long$surv
 
+####################################################
+## Rare disease
 ## plot survival function from each simulation
 pred_long$plotgroup <- paste0(pred_long$x, pred_long$sim)
-surv_plot <- ggplot(data=pred_long[settings==2], 
+surv_plot <- ggplot(data=pred_long[settings==1], 
                     aes(x = time, 
                         y = pr, 
                         group = plotgroup, 
                         colour = x))
 surv_plot <- surv_plot +  theme_bw()
-surv_plot <- surv_plot + geom_line(alpha = I(1/sqrt(max(pred_long$sim)*4)))
-surv_plot
+surv_plot <- surv_plot + geom_line(alpha = I(1/sqrt(max(pred_long$sim)*8)))
+surv_plot <- surv_plot + scale_x_continuous(name = "Age (years)")
+surv_plot <- surv_plot + scale_y_continuous(name = "Cumulative probability")
 
 ## "True" survival function
-params <- read.csv("./analysis/output/o01_params.csv")
-hr <- exp(params[2, "lhr"])
-origin <- params[2, "origin"]
-weib_param <- params[2, "weib_param1"]
-lambda0 <-c(1/hr, 1, hr) * params[2, "baseline_rate1"] 
+hr <- exp(params[1, lhr])
+origin <- params[1, origin]
+weib_param <- params[1, weib_param1]
+lambda0 <-c(1/hr, 1, hr) * params[1, baseline_rate1] 
 lambda0 <- rep(lambda0, each = length(t))
 surv_true <- exp(-lambda0*(t-origin)^weib_param)
 true <- data.frame(time = t, 
@@ -124,5 +170,48 @@ surv_plot <- surv_plot + geom_line(data = true,
                                    aes(x = time, 
                                        y = pr, 
                                        group = x))
-surv_plot
 
+CairoPDF(file = "./analysis/output/g02_cumul_risk_rare.pdf",
+         width = 6, 
+         height = 5)
+surv_plot
+dev.off()
+
+######################################
+## Common disease
+## plot survival function from each simulation
+pred_long$plotgroup <- paste0(pred_long$x, pred_long$sim)
+surv_plot <- ggplot(data=pred_long[settings==2], 
+                    aes(x = time, 
+                        y = pr, 
+                        group = plotgroup, 
+                        colour = x))
+surv_plot <- surv_plot +  theme_bw()
+surv_plot <- surv_plot + geom_line(alpha = I(1/sqrt(max(pred_long$sim)*8)))
+surv_plot <- surv_plot + scale_x_continuous(name = "Age (years)")
+surv_plot <- surv_plot + scale_y_continuous(name = "Cumulative probability")
+
+## "True" survival function
+hr <- exp(params[2, lhr])
+origin <- params[2, origin]
+weib_param <- params[2, weib_param1]
+lambda0 <-c(1/hr, 1, hr) * params[2, baseline_rate1] 
+lambda0 <- rep(lambda0, each = length(t))
+surv_true <- exp(-lambda0*(t-origin)^weib_param)
+true <- data.frame(time = t, 
+                   surv = surv_true, 
+                   lambda = lambda0,
+                   pr   = 1-surv_true,
+                   plotgroup = rep(0, length(surv_true)),
+                   x = rep(c("X1", "X2", "X3"), each=length(t)))
+                   
+surv_plot <- surv_plot + geom_line(data = true, 
+                                   aes(x = time, 
+                                       y = pr, 
+                                       group = x))
+
+CairoPDF(file = "./analysis/output/g02_cumul_risk_common.pdf",
+         width = 6, 
+         height = 5)
+surv_plot
+dev.off()
