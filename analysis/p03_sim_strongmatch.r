@@ -96,10 +96,12 @@ gen_binary_match <- function(exposure, exposure_or, prob) {
 # for the simulation.
 sim_strong_match <- function(params) {
   exposure <- rnorm(params$n)
-  match <- gen_binary_match(exposure, 
-                            exposure_or=params$matchvar_exposure_or,
-                            prob=params$prev_matchvar)
-  X <- cbind(exposure = exposure, matchvar = match)
+  matchvar <- gen_binary_match(exposure, 
+                               exposure_or=params$matchvar_exposure_or,
+                               prob=params$prev_matchvar)
+  # centre matching var 
+  matchvar_centred <- matchvar - mean(matchvar)
+  X <- cbind(exposure = exposure, matchvar = matchvar_centred)
   compet_exposure <- as.matrix(rnorm(params$n))
   cohort <- weibull_compet(lambda0 = params$baseline_rate,
                            p = params$weib_param,
@@ -113,16 +115,17 @@ sim_strong_match <- function(params) {
   cohort$obs_time <- cohort$obs_time + params$origin
   cohort$f_time <- cohort$f_time + params$origin
   cohort$failed <- as.numeric(cohort$status==1)
-  cohort <- cbind(cohort, X)
+  cohort <- cbind(cohort, exposure, matchvar, matchvar_centred)
   # full cohort analysis
   st_full <- Surv(time    = cohort$obs_time, 
                   event   = cohort$failed, 
                   origin  = params$origin)
   exposure <- cohort$exposure
   matchvar <- cohort$matchvar
-  full <- survreg(st_full ~ exposure + matchvar, dist = "weibull")
+  matchvar_centred <- cohort$matchvar_centred
+  full <- survreg(st_full ~ exposure + matchvar_centred, dist = "weibull")
   full <- coef_se(full)
-  coxfull <- coxph(st_full ~ exposure + matchvar)
+  coxfull <- coxph(st_full ~ exposure + matchvar_centred)
   coxfull <- data.frame(intercept = rep(NA ,2), 
                         rbind(coef(coxfull), sqrt(diag(vcov(coxfull)))),
                         log_scale = rep(NA, 2),
@@ -135,7 +138,7 @@ sim_strong_match <- function(params) {
                     fail = failed,
                     match = matchvar,
                     controls = params$ncc_controls, 
-                    include = list(exposure, obs_time),
+                    include = list(exposure, obs_time, matchvar_centred),
                     data = cohort,
                     silent = TRUE)
   
@@ -157,12 +160,12 @@ sim_strong_match <- function(params) {
   st <- Surv(time   = ncc$obs_time, 
              event  = ncc$ncc_fail,
              origin = params$origin)
-  weighted <- survreg(st ~ exposure + matchvar + cluster(ncc_id),  
+  weighted <- survreg(st ~ exposure + matchvar_centred + cluster(ncc_id),  
                       weights = 1/ncc_pr,
                       robust = TRUE,
                       data = ncc) 
   weighted <- coef_se(weighted)
-  coxweighted <- coxph(st ~ exposure + matchvar + cluster(ncc_id),  
+  coxweighted <- coxph(st ~ exposure + matchvar_centred + cluster(ncc_id),  
                        weights = 1/ncc_pr,
                        robust = TRUE,
                        data = ncc) 
