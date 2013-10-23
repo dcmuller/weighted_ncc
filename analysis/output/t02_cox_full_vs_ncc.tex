@@ -1,0 +1,17 @@
+% latex.default(tabcox, file = "./analysis/output/t02_cox_full_vs_ncc.tex",      booktabs = TRUE, rowlabel = "") 
+%
+\begin{table}[!tbp]
+\begin{center}
+\begin{tabular}{llrrrr}
+\toprule
+\multicolumn{1}{l}{}&\multicolumn{1}{c}{analysis}&\multicolumn{1}{c}{mean(log HR)}&\multicolumn{1}{c}{sd(log HR)}&\multicolumn{1}{c}{mean(se(log HR))}&\multicolumn{1}{c}{sd(se(log HR))}\tabularnewline
+\midrule
+common disease&Full cohort&$0.690$&$0.025$&$0.022$&$0.000$\tabularnewline
+&Weighted NCC&$0.690$&$0.032$&$0.029$&$0.001$\tabularnewline
+rare disease&Full cohort&$0.685$&$0.074$&$0.076$&$0.003$\tabularnewline
+ &Weighted NCC&$0.704$&$0.119$&$0.113$&$0.012$\tabularnewline
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
