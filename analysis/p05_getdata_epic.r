@@ -114,5 +114,5 @@ with(epic, table(smoke, smoke_stat, useNA="ifany"))
 epic$smoke <- factor(epic$smoke, labels=c("never", "former", "current"))
 
 ## save the dataset dataset
-save(epic, file = "./data/derived/d01_epic.RData")
+save(epic, file = "./data/derived/d05_epic.RData")
 sink()
