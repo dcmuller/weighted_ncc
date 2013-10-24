@@ -64,6 +64,15 @@ epic$baseline_age <- as.numeric(epic$d_recrui - epic$d_birth)/365.25
 ## Integer age at recruitment
 age_int <- floor(epic$age_recr)
 
+## Country
+epic$country_cde <- ifelse(epic$country == "B", 10, as.numeric(epic$country))
+with(epic, table(country_cde, country, useNA="ifany"))
+countrylabs <- c("France", "Italy", "Spain", "United Kingdom",     
+                 "The Netherlands", "Greece", "Germany", "Sweden",
+                 "Denmark", "Norway")
+epic$country_cde <- factor(epic$country_cde, labels=countrylabs)
+rm(countrylabs)
+
 ## lung cancers
 lungcodes <- c("C340", "C341", "C342", "C343", "C348", "C349")
 epic$lung_ca <- 0L
