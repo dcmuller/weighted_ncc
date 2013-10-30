@@ -52,18 +52,45 @@ samples_long <- data.table(samples_long)
 samples_long$param<- as.character(samples_long$param)
 setkey(samples_long, settings, model, param_type, param)
 
+## put se's next to the relevant estimate
+samples_long$tempid <- with(samples_long,
+                            paste0(settings, "_", model, "_", 
+                                   param, "_", sim_id))
+samples_est_se <- as.data.frame(samples_long)
+samples_est_se <- reshape(samples_est_se, 
+                          v.names="estimate", 
+                          idvar="tempid", 
+                          sep="_", 
+                          direction="wide", 
+                          timevar="param_type")
+samples_est_se$tempid <- NULL
+samples_est_se <- data.table(samples_est_se)
+setkey(samples_est_se, settings, model, param)
+
+## merge with "true" log hazard ratio
+true_lhr <- params[, list(settings, lhr1, lhr2)]
+samples_est_se <- merge(true_lhr, samples_est_se, by="settings")
+
+## coverage
+samples_est_se[, lci:=estimate_coef - 1.96*estimate_se]
+samples_est_se[, uci:=estimate_coef + 1.96*estimate_se]
+samples_est_se[, truecovered:=ifelse(param=="exposure",
+                                     as.numeric(lci <= lhr1 & lhr1 <= uci),
+                                     ifelse(param=="matchvar_centred",
+                                            as.numeric(lci <= lhr2 & lhr2 <= uci),
+                                            NA))]
 
 ## summary table by model
-summary_samples <- samples_long[,  
-                                list(mean  = mean(estimate),
-                                     sd    = sd(estimate),
-                                     min   = min(estimate),
-                                     max   = max(estimate))
-                                , by = c("settings", 
-                                         "model", 
-                                         "param", 
-                                         "param_type")]
-setkey(summary_samples, model, param, param_type)
+summary_samples <- samples_est_se[,  
+                                  list(mean_coef  = mean(estimate_coef),
+                                       sd_coef    = sd(estimate_coef),
+                                       mean_se    = mean(estimate_se),
+                                       sd_se      = sd(estimate_se),
+                                       coverage   = mean(truecovered))
+                                  , by = c("settings", 
+                                           "model", 
+                                           "param")]
+setkey(summary_samples, model, param)
 summary_samples
 
 ## table for comparison of full cox and weighted cox
@@ -71,22 +98,15 @@ tabcox <- summary_samples[(model == "coxfull" |
                              model == "conditional" |
                              model == "coxweighted") 
                             & param == "exposure",
-                          list(settings, model, param_type, mean, sd)]
+                          list(settings, model, 
+                               mean_coef, sd_coef,
+                               mean_se, sd_se,
+                               coverage)]
 tabcox_1 <- tabcox[settings == 1]
 tabcox_1[, settings:=NULL]
-tabcox_1 <- reshape(tabcox_1, 
-                    v.names=c("mean", "sd"), 
-                    idvar="model", 
-                    direction="wide", 
-                    timevar="param_type")
 tabcox_1 <- data.frame(tabcox_1)
 tabcox_2 <- tabcox[settings == 2]
 tabcox_2[, settings:=NULL]
-tabcox_2 <- reshape(tabcox_2, 
-                    v.names=c("mean", "sd"), 
-                    idvar="model", 
-                    direction="wide", 
-                    timevar="param_type")
 tabcox_2 <- data.frame(tabcox_2)
 tabcox <- rbind.data.frame(tabcox_2, tabcox_1)
 rownames(tabcox) <- c("common disease", "", " ", "rare disease", "  ", "   ")
@@ -102,7 +122,8 @@ tabcox[["model"]] <- ifelse(tabcox[["model"]] == "coxfull",
                                    "Conditional"))
 colnames(tabcox) <- c("analysis",
                       "mean(log HR)", "sd(log HR)", 
-                      "mean(se(log HR))", "sd(se(log HR))")
+                      "mean(se(log HR))", "sd(se(log HR))",
+                      "CI coverage")
 textab <- latex(tabcox, 
                 file = "./analysis/output/t04_cox_full_vs_ncc_match.tex", 
                 booktabs = TRUE, 
